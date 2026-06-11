@@ -1,0 +1,1395 @@
+{% extends "layout.html" %}
+{% block title %}Chat{% endblock %}
+
+{% block content %}
+<div class="flex h-[calc(100vh-3.5rem)] overflow-hidden">
+  <aside id="sidebar" class="w-64 flex-shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col overflow-hidden transition-all duration-300">
+
+    <!-- Role Badge -->
+    <div class="p-4 border-b border-slate-800">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+          {{ user.name[0].upper() }}
+        </div>
+        <div class="min-w-0">
+          <p class="text-sm font-semibold text-white truncate">{{ user.name }}</p>
+          <p class="text-xs {% if user.role == 'admin' %}text-amber-400{% else %}text-emerald-400{% endif %} font-mono">
+            {{ user.role.upper() }} —       
+            {% if user.role == 'admin' %}Full Access{% else %}Read Only{% endif %}
+          </p>
+        </div>
+      </div>
+      {% if demo_mode %}
+      <div class="mt-2 px-2 py-1 rounded-lg bg-amber-900/30 border border-amber-800 flex items-center gap-1.5">
+        <i data-lucide="lock" class="w-3 h-3 text-amber-400"></i>
+        <span class="text-xs text-amber-400 font-semibold">Demo Mode Aktif</span>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="p-3 border-b border-slate-800">
+      <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Model AI</p>
+      <div class="space-y-1" id="model-list">
+        {% for model_id, info in available_models.items() %}
+        <button
+          onclick="switchModel('{{ model_id }}')"
+          id="model-btn-{{ model_id | replace('.', '-') | replace('_', '-') }}"
+          class="model-btn w-full text-left px-2.5 py-2 rounded-lg border transition-all
+            {% if model_id == active_model %}
+              bg-brand-900/40 border-brand-700 text-white
+            {% else %}
+              bg-slate-800/40 border-slate-700/50 text-slate-400 hover:border-slate-600 hover:text-slate-200
+            {% endif %}">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-semibold truncate">{{ info.label }}</span>
+            <span class="text-xs px-1.5 py-0.5 rounded font-mono flex-shrink-0 ml-1
+              {% if info.provider == 'anthropic' %}bg-brand-900/50 text-brand-400
+              {% else %}bg-amber-900/40 text-amber-400{% endif %}">
+              {% if info.provider == 'anthropic' %}✦{% else %}⚡{% endif %}
+            </span>
+          </div>
+          <p class="text-xs text-slate-600 mt-0.5 truncate">{{ info.desc }}</p>
+          <p class="text-xs text-slate-700 mt-0.5">{{ info.speed }}</p>
+        </button>
+        {% endfor %}
+      </div>
+      <div id="model-status" class="mt-2 text-xs text-slate-600 hidden"></div>
+    </div>
+
+    <div class="flex-1 overflow-y-auto p-3">
+      <div class="mb-3 flex items-center justify-between">
+        <p class="text-xs font-bold text-slate-500 uppercase tracking-wider">Schema Database</p>
+        <button onclick="reloadSchema()" class="text-slate-600 hover:text-brand-400 transition-colors" title="Reload schema">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+
+      <div id="schema-container" class="space-y-2">
+        {% for table_name, table_info in schema.items() %}
+        <div class="rounded-lg bg-slate-800/50 border border-slate-800 overflow-hidden">
+          <button onclick="toggleTable('tbl-{{ table_name }}')"
+            class="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-slate-800 transition-colors group">
+            <div class="flex items-center gap-2">
+              <i data-lucide="table" class="w-3.5 h-3.5 text-brand-400"></i>
+              <span class="text-xs font-semibold text-slate-300 font-mono">{{ table_name }}</span>
+            </div>
+            <span class="text-xs text-slate-600 group-hover:text-slate-400">{{ table_info.columns|length }}</span>
+          </button>
+          <div id="tbl-{{ table_name }}" class="hidden px-3 pb-2">
+            {% for col in table_info.columns %}
+            <div class="flex items-center gap-1.5 py-0.5">
+              <span class="w-1.5 h-1.5 rounded-full flex-shrink-0 {% if col.pk %}bg-amber-400{% else %}bg-slate-600{% endif %}"></span>
+              <span class="text-xs text-slate-400 font-mono truncate">{{ col.name }}</span>
+              <span class="text-xs text-slate-600 ml-auto">{{ col.type }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="p-3 border-t border-slate-800 space-y-2">
+      <button onclick="document.getElementById('foto-modal').classList.remove('hidden')"
+        class="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs font-medium transition-all">
+        <i data-lucide="image" class="w-3.5 h-3.5"></i>
+        Upload Foto
+      </button>
+      <button onclick="clearHistory()"
+        class="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 hover:bg-red-900/40 text-slate-400 hover:text-red-400 text-xs font-medium transition-all">
+        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+        Hapus Riwayat
+      </button>
+    </div>
+
+  </aside>
+
+  <div class="flex-1 flex overflow-hidden">
+
+    <!-- Chat Panel -->
+    <div class="flex-1 flex flex-col min-w-0">
+
+      <!-- Chat Header -->
+      <div class="px-4 py-3 border-b border-slate-800 bg-slate-900/50 flex items-center justify-between">
+        <div>
+          <h2 class="text-sm font-semibold text-white">Database Chat</h2>
+          <p class="text-xs text-slate-500">Tanya apa saja tentang database dalam bahasa natural</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="flex items-center gap-1.5 text-xs text-emerald-400">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            Groq LLM Online
+          </span>
+        </div>
+      </div>
+
+      <div id="chat-messages" class="flex-1 overflow-y-auto p-4 space-y-4">
+
+        <div id="welcome-msg" class="{% if chat_history %}hidden{% endif %}">
+          <div class="flex justify-start">
+            <div class="max-w-lg">
+              <div class="flex items-center gap-2 mb-2">
+                <div class="w-6 h-6 rounded-full bg-brand-600 flex items-center justify-center">
+                  <i data-lucide="bot" class="w-3.5 h-3.5 text-white"></i>
+                </div>
+                <span class="text-xs text-slate-500 font-medium">NL2SQL Agent</span>
+              </div>
+              <div class="bg-slate-800 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-slate-300 leading-relaxed">
+                <p class="font-semibold text-white mb-2">👋 Halo, <span class="text-brand-400">{{ user.name }}</span>!</p>
+                <p class="text-slate-400 text-xs mb-3">Saya siap membantu kamu mengakses database menggunakan bahasa natural. Coba tanyakan sesuatu seperti:</p>
+                <div class="space-y-1.5">
+                  {% set examples = [
+                    "Tampilkan semua dosen perempuan",
+                    "Apa fakultas dengan jumlah dosen terbanyak",
+                    "Berapa jumlah dosen",
+                    "Buatkan grafik batang fakultas dengan jumlah dosen di fakultas tersebut"
+                  ] %}
+                  {% for ex in examples %}
+                  <button onclick="sendExample('{{ ex }}')"
+                    class="block w-full text-left px-3 py-1.5 rounded-lg bg-slate-700/50 hover:bg-brand-900/40 hover:border-brand-700 border border-slate-700 text-xs text-slate-300 hover:text-brand-300 transition-all">
+                    💬 {{ ex }}
+                  </button>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {% for msg in chat_history %}
+          {% if msg.role == 'user' %}
+          <div class="flex justify-end animate-slide-in">
+            <div class="max-w-lg">
+              <div class="bg-brand-700 rounded-2xl rounded-tr-sm px-4 py-3 text-sm text-white">
+                {{ msg.content }}
+              </div>
+            </div>
+          </div>
+          {% else %}
+          <div class="flex justify-start animate-slide-in">
+            <div class="max-w-2xl w-full">
+              <div class="flex items-center gap-2 mb-2">
+                <div class="w-6 h-6 rounded-full bg-brand-600 flex items-center justify-center">
+                  <i data-lucide="bot" class="w-3.5 h-3.5 text-white"></i>
+                </div>
+                <span class="text-xs text-slate-500">NL2SQL Agent</span>
+              </div>
+              <div class="bg-slate-800 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-slate-300 leading-relaxed">
+                {{ msg.content }}
+              </div>
+              {% if msg.get('table') and msg.table.columns %}
+              <div class="mt-2 overflow-x-auto rounded-xl border border-slate-700 max-h-48">
+                <table class="result-table w-full text-xs">
+                  <thead><tr>
+                    {% for col in msg.table.columns %}<th class="px-3 py-2 text-left font-mono whitespace-nowrap">{{ col }}</th>{% endfor %}
+                  </tr></thead>
+                  <tbody>
+                    {% for row in msg.table.rows[:5] %}
+                    <tr>{% for cell in row %}<td class="px-3 py-1.5 text-slate-300 whitespace-nowrap">{{ cell }}</td>{% endfor %}</tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              {% endif %}
+              
+              {% if msg.get('visualization') and msg.visualization.get('chart_b64') %}
+              <div class="mt-3 rounded-xl border border-slate-700/60 bg-slate-900/50 overflow-hidden">
+                <div class="flex items-center justify-between px-3 py-2 border-b border-slate-700/50">
+                  <span class="text-xs font-semibold text-brand-400">Visualisasi</span>
+                </div>
+                <div class="p-2 flex justify-center">
+                  <img src="data:image/png;base64,{{ msg.visualization.chart_b64 }}" 
+                       class="max-w-full rounded-lg" 
+                       style="max-height:420px; object-fit:contain" 
+                       alt="Grafik visualisasi data">
+                </div>
+              </div>
+              {% endif %}
+              
+              {% if msg.get('metadata') and msg.metadata.get('insight') %}
+              <div class="mt-3 rounded-xl border border-purple-700/40 bg-purple-950/20 p-3">
+                <div class="flex items-center gap-2 mb-1.5">
+                  <span class="text-xs font-bold text-purple-400">AI Insight</span>
+                </div>
+                <p class="text-xs text-slate-300 leading-relaxed whitespace-pre-line">{{ msg.metadata.insight }}</p>
+              </div>
+              {% endif %}
+              
+              {% if msg.get('metadata') and msg.metadata.get('statistics') %}
+              <div class="mt-3 rounded-xl border border-cyan-700/40 bg-cyan-950/20 p-3">
+                <p class="text-xs font-bold text-cyan-400 mb-2">Statistik Deskriptif</p>
+                <div class="overflow-x-auto">
+                  <table class="w-full text-xs">
+                    <thead><tr>
+                      <th class="px-2 py-1 text-left text-slate-500 font-normal">Kolom</th>
+                      {% set first_stat = msg.metadata.statistics.values()|list|first %}
+                      {% if first_stat %}
+                        {% for stat_key in first_stat.keys() %}
+                        <th class="px-2 py-1 text-right text-slate-500 font-normal">{{ stat_key.replace('_', ' ') }}</th>
+                        {% endfor %}
+                      {% endif %}
+                    </tr></thead>
+                    <tbody>
+                      {% for col_name, stats in msg.metadata.statistics.items() %}
+                      <tr>
+                        <td class="px-2 py-1 text-slate-400 font-mono">{{ col_name }}</td>
+                        {% for stat_val in stats.values() %}
+                        <td class="px-2 py-1 text-right text-slate-300">{{ stat_val }}</td>
+                        {% endfor %}
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              {% endif %}
+              
+              {% if msg.get('metadata') and msg.metadata.get('data_quality') and msg.metadata.data_quality.get('success') %}
+              {% set dq = msg.metadata.data_quality %}
+              {% set summary = dq.get('summary', {}) %}
+              {% set has_issues = dq.get('issues', [])|length > 0 %}
+              {% set status_color = 'amber' if has_issues else 'emerald' %}
+              <div class="mt-3 rounded-xl border border-{{ status_color }}-700/40 bg-{{ status_color }}-950/20 p-3">
+                <div class="flex items-center justify-between mb-1.5">
+                  <span class="text-xs font-bold text-{{ status_color }}-400">Kualitas Data</span>
+                  {% if summary.get('quality_score') %}
+                  <span class="text-xs text-slate-400">Skor: <b class="text-white">{{ summary.quality_score }}/100</b> — {{ summary.get('grade', '') }}</span>
+                  {% endif %}
+                </div>
+                {% if summary.get('total_rows') %}
+                <p class="text-xs text-slate-500 mb-1">{{ summary.total_rows }} baris, {{ summary.get('total_cols', 0) }} kolom</p>
+                {% endif %}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+        {% endfor %}
+
+      </div>
+
+      <div class="p-4 border-t border-slate-800 bg-slate-900/50">
+        <div class="flex gap-2 items-end">
+          <div class="flex-1 relative">
+            <textarea
+              id="chat-input"
+              placeholder="Tanya database dalam bahasa natural... (Enter untuk kirim, Shift+Enter untuk baris baru)"
+              class="w-full bg-slate-800 border border-slate-700 focus:border-brand-500 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 resize-none transition-all leading-relaxed"
+              rows="1"
+              style="min-height:44px; max-height:120px"
+              oninput="autoResize(this)"
+              onkeydown="handleKey(event)"
+            ></textarea>
+          </div>
+          <button
+            id="send-btn"
+            onclick="sendQuestion()"
+            class="flex-shrink-0 w-11 h-11 rounded-xl bg-brand-600 hover:bg-brand-500 flex items-center justify-center transition-all shadow-lg hover:shadow-brand-900/50">
+            <i data-lucide="send" class="w-4 h-4 text-white"></i>
+          </button>
+        </div>
+        <p class="text-xs text-slate-600 mt-1.5 px-1">
+          Role: <span class="{% if user.role == 'admin' %}text-amber-500{% else %}text-emerald-500{% endif %}">{{ user.role }}</span>
+          — {% if user.role == 'user' %}Hanya query SELECT yang diizinkan{% else %}Operasi berbahaya butuh konfirmasi{% endif %}
+          &nbsp;·&nbsp;
+          <span id="model-indicator" title="{{ active_model_info.desc }}"
+            class="{% if active_model_info.provider == 'anthropic' %}text-brand-400{% else %}text-amber-500{% endif %}">
+            {{ active_model_info.badge }} {{ active_model_info.label }}
+          </span>
+        </p>
+      </div>
+
+    </div>
+
+    <div id="transparency-panel" class="w-80 flex-shrink-0 bg-slate-900 border-l border-slate-800 flex flex-col overflow-hidden">
+
+      <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+        <div>
+          <h3 class="text-xs font-bold text-white uppercase tracking-wider">Transparansi Agent</h3>
+          <p class="text-xs text-slate-500">Proses di balik layar</p>
+        </div>
+        <i data-lucide="eye" class="w-4 h-4 text-slate-600"></i>
+      </div>
+
+      <div id="process-panel" class="flex-1 overflow-y-auto p-3 space-y-3">
+        <div class="text-center py-8">
+          <i data-lucide="activity" class="w-8 h-8 text-slate-700 mx-auto mb-2"></i>
+          <p class="text-xs text-slate-600">Proses agent akan ditampilkan di sini setelah kamu mengajukan pertanyaan</p>
+        </div>
+      </div>
+
+      <!-- Session token counter -->
+      <div id="token-footer" class="hidden px-3 py-2 border-t border-slate-800 bg-slate-900/80">
+        <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Token Usage (sesi ini)</p>
+        <div class="flex gap-2 flex-wrap">
+          <span class="text-xs px-2 py-0.5 rounded font-mono bg-slate-800 border border-slate-700 text-slate-400">
+            ↑ <span id="tok-in-total">0</span> input
+          </span>
+          <span class="text-xs px-2 py-0.5 rounded font-mono bg-slate-800 border border-slate-700 text-slate-400">
+            ↓ <span id="tok-out-total">0</span> output
+          </span>
+          <span class="text-xs px-2 py-0.5 rounded font-mono bg-slate-800 border border-slate-600 text-white font-semibold">
+            <span id="tok-total-total">0</span> total
+          </span>
+        </div>
+      </div>
+
+      <div id="export-section" class="hidden p-3 border-t border-slate-800 space-y-2">
+        <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Export Hasil</p>
+        <button onclick="exportResult('csv')" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-900/40 hover:bg-emerald-900/60 border border-emerald-800 text-emerald-400 text-xs font-medium transition-all">
+          <i data-lucide="file-text" class="w-3.5 h-3.5"></i>
+          Export CSV
+        </button>
+        <button onclick="exportResult('excel')" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-900/40 hover:bg-blue-900/60 border border-blue-800 text-blue-400 text-xs font-medium transition-all">
+          <i data-lucide="table" class="w-3.5 h-3.5"></i>
+          Export Excel
+        </button>
+        <button onclick="exportReportPDF()" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-red-900/40 hover:bg-red-900/60 border border-red-800 text-red-400 text-xs font-medium transition-all">
+          <i data-lucide="file" class="w-3.5 h-3.5"></i>
+          PDF Report
+        </button>
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+
+
+<div id="confirm-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+  <div class="bg-slate-900 border border-amber-800/50 rounded-2xl p-6 w-full max-w-lg shadow-2xl">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-10 h-10 rounded-xl bg-amber-900/50 flex items-center justify-center">
+        <i data-lucide="alert-triangle" class="w-5 h-5 text-amber-400"></i>
+      </div>
+      <div>
+        <h3 class="text-base font-bold text-white">Konfirmasi Eksekusi</h3>
+        <p class="text-xs text-amber-400">Operasi ini dapat mengubah atau menghapus data</p>
+      </div>
+    </div>
+
+    <div class="mb-4">
+      <p class="text-xs text-slate-500 mb-1 font-semibold uppercase">SQL Query</p>
+      <pre id="confirm-sql" class="bg-slate-800 rounded-lg p-3 text-xs text-amber-300 font-mono overflow-x-auto whitespace-pre-wrap"></pre>
+    </div>
+
+    <div class="flex gap-3">
+      <button onclick="document.getElementById('confirm-modal').classList.add('hidden')"
+        class="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold transition-all border border-slate-700">
+        Batal
+      </button>
+      <button id="confirm-execute-btn"
+        class="flex-1 py-2.5 rounded-xl bg-red-700 hover:bg-red-600 text-white text-sm font-semibold transition-all">
+        ⚡ Eksekusi Sekarang
+      </button>
+    </div>
+  </div>
+</div>
+
+<div id="foto-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+  <div class="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-base font-bold text-white">Upload Foto</h3>
+      <button onclick="closeFotoModal()" class="text-slate-500 hover:text-white">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+
+    <div id="foto-drop-zone"
+      class="border-2 border-dashed border-slate-700 rounded-xl p-6 text-center mb-4 hover:border-brand-500 transition-colors cursor-pointer"
+      onclick="document.getElementById('foto-file').click()"
+      ondragover="event.preventDefault(); this.classList.add('border-brand-500')"
+      ondragleave="this.classList.remove('border-brand-500')"
+      ondrop="handleFotoDrop(event)">
+      <i data-lucide="image" class="w-8 h-8 text-slate-600 mx-auto mb-2"></i>
+      <p class="text-sm text-slate-400">Klik atau drag foto ke sini</p>
+      <p class="text-xs text-slate-600 mt-1">Format: PNG, JPG, JPEG, GIF, WEBP (maks 5 MB)</p>
+      <input type="file" id="foto-file" class="hidden" accept=".png,.jpg,.jpeg,.gif,.webp" onchange="handleFotoSelect(this)"/>
+    </div>
+
+    <!-- Preview -->
+    <div id="foto-preview" class="hidden mb-4 text-center">
+      <img id="foto-preview-img" src="" alt="preview" class="mx-auto max-h-40 rounded-xl border border-slate-700 object-contain"/>
+      <p id="foto-preview-name" class="text-xs text-slate-500 mt-1"></p>
+    </div>
+
+    <div id="foto-status" class="hidden mb-4 p-3 rounded-lg text-sm"></div>
+
+    <!-- Hasil path setelah upload -->
+    <div id="foto-result" class="hidden mb-4">
+      <p class="text-xs text-slate-400 font-semibold mb-1">Path foto (gunakan untuk INSERT):</p>
+      <div class="flex items-center gap-2">
+        <input type="text" id="foto-result-path" readonly
+          class="flex-1 bg-slate-800 border border-emerald-700 rounded-lg px-3 py-2 text-sm text-emerald-400 font-mono"/>
+        <button onclick="copyFotoPath()" title="Salin path"
+          class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 transition-all">
+          <i data-lucide="copy" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <button onclick="pastePathToChat()" class="mt-2 w-full text-xs py-1.5 rounded-lg bg-brand-900/40 border border-brand-700 text-brand-400 hover:bg-brand-900/60 transition-all">
+        Tempel path ke input chat
+      </button>
+    </div>
+
+    <button onclick="doUploadFoto()"
+      class="w-full py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-all">
+      Upload Foto
+    </button>
+  </div>
+</div>
+
+<div id="clear-history-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+  <div class="bg-slate-900 border border-red-800/50 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-10 h-10 rounded-xl bg-red-900/50 flex items-center justify-center">
+        <i data-lucide="trash-2" class="w-5 h-5 text-red-400"></i>
+      </div>
+      <div>
+        <h3 class="text-base font-bold text-white">Hapus Riwayat Chat</h3>
+        <p class="text-xs text-red-400">Tindakan ini tidak dapat dibatalkan</p>
+      </div>
+    </div>
+
+    <div class="mb-4 p-3 rounded-lg bg-red-950/20 border border-red-800/30">
+      <p class="text-sm text-slate-300 mb-2">Anda akan menghapus:</p>
+      <ul class="text-xs text-slate-400 space-y-1 ml-4">
+        <li>• Semua percakapan dalam sesi ini</li>
+        <li>• Riwayat pertanyaan dan jawaban</li>
+        <li>• Tabel, grafik, dan insight yang tersimpan</li>
+      </ul>
+      <p class="text-xs text-red-400 mt-2 font-semibold">⚠️ Data yang dihapus tidak dapat dikembalikan!</p>
+    </div>
+
+    <div class="flex gap-3">
+      <button onclick="document.getElementById('clear-history-modal').classList.add('hidden')"
+        class="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold transition-all border border-slate-700">
+        Batal
+      </button>
+      <button onclick="confirmClearHistory()"
+        class="flex-1 py-2.5 rounded-xl bg-red-700 hover:bg-red-600 text-white text-sm font-semibold transition-all">
+        🗑️ Hapus Semua
+      </button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+var INITIAL_CHAT_HISTORY = {{ chat_history|tojson|safe }};
+</script>
+<script>
+// ============================================================
+// State
+// ============================================================
+let lastResult    = null;
+let lastPayload   = null;
+let pendingSQL    = null;
+let pendingQuestion = "";
+
+// Session token accumulator
+let _sessionTokens = { input: 0, output: 0, total: 0 };
+
+function _updateSessionTokens(tu) {
+  if (!tu || tu.total_tokens === undefined) return;
+  _sessionTokens.input  += tu.input_tokens  || 0;
+  _sessionTokens.output += tu.output_tokens || 0;
+  _sessionTokens.total  += tu.total_tokens  || 0;
+  document.getElementById('tok-in-total').textContent    = _sessionTokens.input.toLocaleString();
+  document.getElementById('tok-out-total').textContent   = _sessionTokens.output.toLocaleString();
+  document.getElementById('tok-total-total').textContent = _sessionTokens.total.toLocaleString();
+  document.getElementById('token-footer').classList.remove('hidden');
+}
+
+// Initialize chat history from server (loaded from database)
+let chatHistory = INITIAL_CHAT_HISTORY || [];
+
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendQuestion();
+  }
+}
+
+function sendExample(text) {
+  document.getElementById('chat-input').value = text;
+  document.getElementById('welcome-msg').classList.add('hidden');
+  sendQuestion();
+}
+
+function scrollBottom() {
+  const el = document.getElementById('chat-messages');
+  el.scrollTop = el.scrollHeight;
+}
+
+function addBubble(role, content, tableData = null, vizData = null, extra = {}) {
+  const container = document.getElementById('chat-messages');
+  document.getElementById('welcome-msg').classList.add('hidden');
+
+  const div = document.createElement('div');
+  div.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} animate-slide-in`;
+
+  if (role === 'user') {
+    div.innerHTML = `
+      <div class="max-w-lg">
+        <div class="bg-brand-700 rounded-2xl rounded-tr-sm px-4 py-3 text-sm text-white">${formatMarkdown(content)}</div>
+      </div>`;
+  } else {
+    let tableHtml = '';
+    if (tableData && tableData.columns && tableData.columns.length > 0) {
+      const limitedRows = tableData.rows.slice(0, 50);
+      tableHtml = `
+        <div class="mt-2 overflow-x-auto rounded-xl border border-slate-700 max-h-60">
+          <table class="result-table w-full text-xs">
+            <thead><tr>${tableData.columns.map(c => `<th class="px-3 py-2 text-left font-mono whitespace-nowrap">${escapeHtml(c)}</th>`).join('')}</tr></thead>
+            <tbody>${limitedRows.map(row =>
+              `<tr>${row.map(cell => `<td class="px-3 py-1.5 text-slate-300 whitespace-nowrap">${renderCell(cell)}</td>`).join('')}</tr>`
+            ).join('')}</tbody>
+          </table>
+          ${tableData.rowcount > 50 ? `<div class="px-3 py-2 text-xs text-slate-500 bg-slate-800/50">... ${tableData.rowcount - 50} baris lainnya</div>` : ''}
+        </div>`;
+    }
+
+
+    let chartHtml = '';
+    let pendingChart = null;
+
+    if (vizData && vizData.chart_b64) {
+      const chartLabels = {
+        'barh': 'Horizontal Bar', 'bar': 'Bar', 'pie': 'Pie',
+        'line': 'Line', 'scatter': 'Scatter', 'bar_multi': 'Multi Bar',
+        'bar_grouped': 'Grouped Bar', 'histogram': 'Histogram',
+      };
+      const chartLabel = chartLabels[vizData.chart_type] || vizData.chart_type || 'Chart';
+      chartHtml = `
+        <div class="mt-3 rounded-xl border border-slate-700/60 bg-slate-900/50 overflow-hidden" id="chart-container-placeholder">
+          <div class="flex items-center justify-between px-3 py-2 border-b border-slate-700/50">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-semibold text-brand-400">Visualisasi Otomatis</span>
+              <span class="text-xs px-2 py-0.5 rounded-full bg-brand-900/40 text-brand-300 font-mono">${escapeHtml(chartLabel)}</span>
+            </div>
+            <button id="chart-download-btn"
+              class="text-xs px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 transition-all">
+              ↓ Unduh
+            </button>
+          </div>
+          <div class="p-2 flex justify-center" id="chart-img-placeholder"></div>
+          ${vizData.reason ? `<div class="px-3 pb-2 text-xs text-slate-600">${escapeHtml(vizData.reason)}</div>` : ''}
+        </div>`;
+      pendingChart = vizData.chart_b64;
+    } else if (vizData && vizData.error) {
+      chartHtml = `
+        <div class="mt-2 px-3 py-2 rounded-lg bg-amber-950/20 border border-amber-800/30 text-xs text-amber-400">
+          ⚠️ Visualisasi tidak tersedia: ${escapeHtml(vizData.error)}
+        </div>`;
+    }
+
+    let insightHtml = '';
+    if (extra.insight) {
+      insightHtml = `
+        <div class="mt-3 rounded-xl border border-purple-700/40 bg-purple-950/20 p-3">
+          <div class="flex items-center gap-2 mb-1.5">
+            <span class="text-xs font-bold text-purple-400">AI Insight</span>
+          </div>
+          <p class="text-xs text-slate-300 leading-relaxed whitespace-pre-line">${escapeHtml(extra.insight)}</p>
+        </div>`;
+    }
+
+    let statsHtml = '';
+    if (extra.statistics && Object.keys(extra.statistics).length > 0) {
+      const statRows = Object.entries(extra.statistics).map(([col, s]) => {
+        const cells = Object.entries(s).map(([k, v]) =>
+          `<td class="px-2 py-1 text-right text-slate-300">${v}</td>`
+        ).join('');
+        const headers = Object.keys(s);
+        return `<tr><td class="px-2 py-1 text-slate-400 font-mono">${escapeHtml(col)}</td>${cells}</tr>`;
+      });
+      const firstStats = Object.values(extra.statistics)[0] || {};
+      const statHeaders = Object.keys(firstStats).map(k =>
+        `<th class="px-2 py-1 text-right text-slate-500 font-normal">${k.replace(/_/g,' ')}</th>`
+      ).join('');
+      statsHtml = `
+        <div class="mt-3 rounded-xl border border-cyan-700/40 bg-cyan-950/20 p-3">
+          <p class="text-xs font-bold text-cyan-400 mb-2">Statistik Deskriptif</p>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+              <thead><tr><th class="px-2 py-1 text-left text-slate-500 font-normal">Kolom</th>${statHeaders}</tr></thead>
+              <tbody>${statRows.join('')}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }
+
+    let qualityHtml = '';
+    if (extra.data_quality && extra.data_quality.success) {
+      const dq = extra.data_quality;
+      const issues = dq.issues || [];
+      const summary = dq.summary || {};
+      const hasIssues = issues.length > 0;
+      const statusColor = hasIssues ? 'amber' : 'emerald';
+      const issueItems = issues.map(iss => {
+        const typeColor = iss.type === 'null' ? 'text-yellow-400' :
+                          iss.type === 'duplicate' ? 'text-orange-400' : 'text-red-400';
+        return `<p class="text-xs ${typeColor} mt-0.5">${escapeHtml(iss.message)}</p>`;
+      }).join('');
+      qualityHtml = `
+        <div class="mt-3 rounded-xl border border-${statusColor}-700/40 bg-${statusColor}-950/20 p-3">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-xs font-bold text-${statusColor}-400">Kualitas Data</span>
+            ${summary.quality_score !== undefined ? `<span class="text-xs text-slate-400">Skor: <b class="text-white">${summary.quality_score}/100</b> — ${escapeHtml(summary.grade || '')}</span>` : ''}
+          </div>
+          ${summary.total_rows ? `<p class="text-xs text-slate-500 mb-1">${summary.total_rows} baris, ${summary.total_cols} kolom</p>` : ''}
+          ${hasIssues ? issueItems : '<p class="text-xs text-emerald-400">Data bersih, tidak ada masalah terdeteksi.</p>'}
+        </div>`;
+    }
+
+    let reportActionsHtml = '';
+    if (extra.is_report && tableData) {
+      reportActionsHtml = `
+        <div class="mt-3 flex gap-2 flex-wrap items-center">
+          <span class="text-xs text-slate-500">Export laporan:</span>
+          <button onclick="exportResult('csv')"
+            class="px-3 py-1.5 rounded-lg bg-emerald-900/40 border border-emerald-800 text-emerald-400 text-xs font-medium hover:bg-emerald-900/60 transition-all">
+            ↓ CSV
+          </button>
+          <button onclick="exportResult('excel')"
+            class="px-3 py-1.5 rounded-lg bg-blue-900/40 border border-blue-800 text-blue-400 text-xs font-medium hover:bg-blue-900/60 transition-all">
+            ↓ Excel
+          </button>
+          <button onclick="exportReportPDF()"
+            class="px-3 py-1.5 rounded-lg bg-red-900/40 border border-red-800 text-red-400 text-xs font-medium hover:bg-red-900/60 transition-all">
+            ↓ PDF Report
+          </button>
+        </div>`;
+    }
+
+    div.innerHTML = `
+      <div class="max-w-2xl w-full">
+        <div class="flex items-center gap-2 mb-2">
+          <div class="w-6 h-6 rounded-full bg-brand-600 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+          </div>
+          <span class="text-xs text-slate-500">NL2SQL Agent</span>
+        </div>
+        <div class="bg-slate-800 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-slate-300 leading-relaxed">${formatMarkdown(content)}</div>
+        ${tableHtml}
+        ${chartHtml}
+        ${insightHtml}
+        ${statsHtml}
+        ${qualityHtml}
+        ${reportActionsHtml}
+      </div>`;
+
+    if (pendingChart) {
+      const imgPlaceholder = div.querySelector('#chart-img-placeholder');
+      const dlBtn = div.querySelector('#chart-download-btn');
+
+      if (imgPlaceholder) {
+        const img = document.createElement('img');
+        img.src = 'data:image/png;base64,' + pendingChart;
+        img.className = 'max-w-full rounded-lg';
+        img.style.maxHeight = '420px';
+        img.style.objectFit = 'contain';
+        img.alt = 'Grafik visualisasi data';
+        imgPlaceholder.appendChild(img);
+      }
+
+      if (dlBtn) {
+        const b64 = pendingChart;
+        dlBtn.addEventListener('click', function() {
+          const link = document.createElement('a');
+          link.href = 'data:image/png;base64,' + b64;
+          link.download = 'grafik-nlsql-' + Date.now() + '.png';
+          link.click();
+        });
+      }
+    }
+  }
+
+  container.appendChild(div);
+  lucide.createIcons();
+  scrollBottom();
+}
+
+function addLoadingBubble() {
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.id = 'loading-bubble';
+  div.className = 'flex justify-start';
+  div.innerHTML = `
+    <div class="bg-slate-800 rounded-2xl rounded-tl-sm px-4 py-3">
+      <div class="dot-pulse flex items-center gap-1">
+        <span></span><span></span><span></span>
+      </div>
+    </div>`;
+  container.appendChild(div);
+  scrollBottom();
+}
+
+function removeLoadingBubble() {
+  const el = document.getElementById('loading-bubble');
+  if (el) el.remove();
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.appendChild(document.createTextNode(text));
+  return div.innerHTML;
+}
+
+function formatMarkdown(text) {
+  let html = escapeHtml(text);
+  
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  
+  html = html.replace(/\n\n+/g, '<br><br>'); 
+  html = html.replace(/\n/g, '<br>');
+  
+  return html;
+}
+
+function renderCell(cell) {
+  const val = String(cell ?? '');
+  if (/\.(png|jpg|jpeg|gif|webp)$/i.test(val) && (val.startsWith('/foto/') || val.startsWith('foto/'))) {
+    const path = val.startsWith('/') ? val : '/' + val;
+    return `<a href="${escapeHtml(path)}" target="_blank">
+      <img src="${escapeHtml(path)}" alt="foto" class="h-10 w-10 rounded object-cover border border-slate-600 hover:h-24 hover:w-24 transition-all cursor-zoom-in" loading="lazy">
+    </a>`;
+  }
+  return escapeHtml(val);
+}
+
+
+function badge(label, color) {
+  return `<span class="text-xs px-1.5 py-0.5 rounded font-mono font-bold bg-${color}-900/40 text-${color}-400 border border-${color}-800">${label}</span>`;
+}
+
+function updateProcessPanel(data) {
+  const panel = document.getElementById('process-panel');
+  const meta  = data.meta || {};
+  const steps = [];
+
+  const intentBadge  = badge(meta.intent || 'data_query', 'brand');
+  const sourceBadge  = {
+    'template': badge('Template', 'amber'),
+    'llm':      badge('LLM', 'purple'),
+    'non-sql':  badge('Non-SQL', 'slate'),
+    'confirmed':badge('Confirmed', 'emerald'),
+  }[meta.source || 'llm'] || badge('LLM', 'purple');
+
+  const cacheTag    = meta.cache_hit    ? badge('Cache Hit', 'cyan')   : '';
+  const fewShotTag  = meta.few_shot_count > 0 ? badge(`+${meta.few_shot_count} contoh`, 'indigo') : '';
+  const repairTag   = meta.auto_repaired  ? badge('Auto-Repair', 'orange') : '';
+  const hallTag     = meta.hallucination  ? badge('Hallusinasi', 'red') : '';
+  const demoTag     = meta.demo_mode      ? badge('Demo Mode', 'amber') : '';
+  const modelBadge  = meta.model_label
+    ? badge((meta.provider === 'anthropic' ? '✦ ' : '⚡ ') + meta.model_label, meta.provider === 'anthropic' ? 'brand' : 'amber')
+    : '';
+
+  const tu = meta.token_usage || {};
+  const tokenHtml = (tu.total_tokens > 0) ? `
+    <div class="mt-2 pt-2 border-t border-slate-700/50">
+      <p class="text-xs text-slate-600 mb-1 font-semibold uppercase tracking-wider">Token LLM</p>
+      <div class="flex gap-1.5 flex-wrap">
+        <span class="text-xs px-2 py-0.5 rounded font-mono bg-slate-900/60 border border-slate-700 text-blue-400">↑ ${tu.input_tokens.toLocaleString()} input</span>
+        <span class="text-xs px-2 py-0.5 rounded font-mono bg-slate-900/60 border border-slate-700 text-emerald-400">↓ ${tu.output_tokens.toLocaleString()} output</span>
+        <span class="text-xs px-2 py-0.5 rounded font-mono bg-slate-900/60 border border-slate-600 text-white font-semibold">${tu.total_tokens.toLocaleString()} total</span>
+      </div>
+    </div>` : '';
+
+  _updateSessionTokens(tu);
+
+  steps.push(`
+    <div class="process-step rounded-xl bg-slate-800/50 border border-slate-700/50 p-3">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="w-5 h-5 rounded-full bg-brand-700 text-brand-300 text-xs flex items-center justify-center font-bold">1</span>
+        <span class="text-xs font-semibold text-slate-300">Input & Klasifikasi</span>
+      </div>
+      <p class="text-xs text-slate-400 mb-2 leading-relaxed">${escapeHtml(data.question)}</p>
+      <div class="flex flex-wrap gap-1">${intentBadge}${sourceBadge}${modelBadge}${cacheTag}${fewShotTag}${demoTag}</div>
+      ${tokenHtml}
+    </div>`);
+
+  if (data.sql && meta.source !== 'non-sql') {
+    const op = data.sql.trim().toUpperCase().split(' ')[0];
+    const opColor = ['DELETE','DROP','UPDATE','INSERT'].includes(op) ? 'text-red-400' : 'text-emerald-400';
+    const astMethod = (data.meta?.ast_method || 'regex');
+    steps.push(`
+      <div class="process-step rounded-xl bg-slate-800/50 border border-slate-700/50 p-3">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="w-5 h-5 rounded-full bg-purple-700 text-purple-300 text-xs flex items-center justify-center font-bold">2</span>
+          <span class="text-xs font-semibold text-slate-300">SQL Generated</span>
+          <span class="ml-auto ${opColor} text-xs font-mono font-bold">${op}</span>
+        </div>
+        <pre class="text-xs text-slate-300 font-mono bg-slate-950/50 rounded-lg p-2 overflow-x-auto whitespace-pre-wrap">${escapeHtml(data.sql)}</pre>
+        <div class="flex flex-wrap gap-1 mt-2">
+          ${badge('AST: ' + astMethod, 'slate')}
+          ${repairTag}${hallTag}
+        </div>
+      </div>`);
+  }
+
+  if (data.guard) {
+    const gc = data.guard.allowed ? 'border-emerald-700/50 bg-emerald-950/20' : 'border-red-700/50 bg-red-950/20';
+    // const gi = data.guard.allowed ? '✅' : '⛔';
+    steps.push(`
+      <div class="process-step rounded-xl border ${gc} p-3">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="w-5 h-5 rounded-full bg-amber-700 text-amber-300 text-xs flex items-center justify-center font-bold">3</span>
+          <span class="text-xs font-semibold text-slate-300">Guard Check (RBAC)</span>
+          ${data.guard.demo_mode ? badge('Demo', 'amber') : ''}
+        </div>
+        <p class="text-xs text-slate-400">$ ${escapeHtml(data.guard.message)}</p>
+        ${data.guard.needs_confirm ? '<p class="text-xs text-amber-400 mt-1">Menunggu konfirmasi admin</p>' : ''}
+      </div>`);
+  }
+
+//   if (data.explain && data.explain.success && data.explain.rows && data.explain.rows.length) {
+//     const rows = data.explain.rows.map(r => Array.isArray(r) ? r.join(' | ') : String(r)).join('\n');
+//     steps.push(`
+//       <div class="process-step rounded-xl bg-slate-800/50 border border-slate-700/50 p-3">
+//         <div class="flex items-center gap-2 mb-2">
+//           <span class="w-5 h-5 rounded-full bg-cyan-700 text-cyan-300 text-xs flex items-center justify-center font-bold">4</span>
+//           <span class="text-xs font-semibold text-slate-300">EXPLAIN QUERY PLAN</span>
+//         </div>
+//         <pre class="text-xs text-slate-400 font-mono bg-slate-950/50 rounded-lg p-2 overflow-x-auto whitespace-pre-wrap max-h-28">${escapeHtml(rows || '-')}</pre>
+//         <p class="text-xs text-slate-600 mt-1">Rencana internal SQLite untuk mengeksekusi query ini</p>
+//       </div>`);
+//   }
+
+  if (data.table) {
+    const cacheHitLabel = meta.cache_hit ? ' ⚡ (dari cache)' : '';
+    steps.push(`
+      <div class="process-step rounded-xl bg-emerald-950/20 border border-emerald-800/40 p-3">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="w-5 h-5 rounded-full bg-emerald-700 text-emerald-300 text-xs flex items-center justify-center font-bold">4</span>
+          <span class="text-xs font-semibold text-slate-300">Hasil Eksekusi${cacheHitLabel}</span>
+        </div>
+        <p class="text-xs text-emerald-400 font-semibold">${data.table.rowcount} baris${data.table.truncated ? ' (tampil 100)' : ''}</p>
+        <p class="text-xs text-slate-600 mt-0.5">Kolom: ${data.table.columns.join(', ')}</p>
+      </div>`);
+  }
+
+  if (data.visualization) {
+    const viz = data.visualization;
+    if (viz.chart_b64) {
+      const chartLabels = {
+        'barh':'Horizontal Bar','bar':'Bar','pie':'Pie','line':'Line',
+        'scatter':'Scatter','bar_multi':'Multi Bar','bar_grouped':'Grouped Bar','histogram':'Histogram'
+      };
+      steps.push(`
+        <div class="process-step rounded-xl bg-indigo-950/20 border border-indigo-800/40 p-3">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="w-5 h-5 rounded-full bg-indigo-700 text-indigo-300 text-xs flex items-center justify-center">📊</span>
+            <span class="text-xs font-semibold text-slate-300">Auto Visualization</span>
+            <span class="ml-auto text-xs px-1.5 py-0.5 rounded bg-indigo-900/50 text-indigo-300 font-mono">${chartLabels[viz.chart_type] || viz.chart_type}</span>
+          </div>
+          <p class="text-xs text-indigo-400">Grafik berhasil digenerate</p>
+          ${viz.reason ? `<p class="text-xs text-slate-600 mt-0.5">${escapeHtml(viz.reason)}</p>` : ''}
+        </div>`);
+    } else if (viz.error) {
+      steps.push(`
+        <div class="process-step rounded-xl bg-amber-950/20 border border-amber-800/40 p-3">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="w-5 h-5 rounded-full bg-amber-700 text-amber-300 text-xs flex items-center justify-center">⚠</span>
+            <span class="text-xs font-semibold text-slate-300">Visualisasi</span>
+          </div>
+          <p class="text-xs text-amber-400">${escapeHtml(viz.error)}</p>
+        </div>`);
+    }
+  }
+
+  if (data.insight) {
+    steps.push(`
+      <div class="process-step rounded-xl bg-purple-950/20 border border-purple-800/40 p-3">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="w-5 h-5 rounded-full bg-purple-700 text-purple-300 text-xs flex items-center justify-center font-bold">🧠</span>
+          <span class="text-xs font-semibold text-slate-300">AI Insight Generator</span>
+        </div>
+        <p class="text-xs text-slate-400 leading-relaxed">${escapeHtml((data.insight || '').substring(0, 120))}${data.insight && data.insight.length > 120 ? '…' : ''}</p>
+      </div>`);
+  }
+
+  if (data.statistics && Object.keys(data.statistics).length > 0) {
+    const colCount = Object.keys(data.statistics).length;
+    steps.push(`
+      <div class="process-step rounded-xl bg-cyan-950/20 border border-cyan-800/40 p-3">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="w-5 h-5 rounded-full bg-cyan-700 text-cyan-300 text-xs flex items-center justify-center font-bold">📈</span>
+          <span class="text-xs font-semibold text-slate-300">Statistical Helper (pandas)</span>
+        </div>
+        <p class="text-xs text-cyan-400">${colCount} kolom numerik dianalisis — tanpa LLM</p>
+      </div>`);
+  }
+
+  if (data.data_quality && data.data_quality.success) {
+    const dq = data.data_quality;
+    const issueCount = (dq.summary || {}).issue_count || 0;
+    const score = (dq.summary || {}).quality_score;
+    steps.push(`
+      <div class="process-step rounded-xl bg-${issueCount > 0 ? 'amber' : 'emerald'}-950/20 border border-${issueCount > 0 ? 'amber' : 'emerald'}-800/40 p-3">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="w-5 h-5 rounded-full bg-${issueCount > 0 ? 'amber' : 'emerald'}-700 text-${issueCount > 0 ? 'amber' : 'emerald'}-300 text-xs flex items-center justify-center font-bold">🔍</span>
+          <span class="text-xs font-semibold text-slate-300">Data Quality Checker (pandas)</span>
+        </div>
+        <p class="text-xs text-${issueCount > 0 ? 'amber' : 'emerald'}-400">${issueCount > 0 ? issueCount + ' isu ditemukan' : 'Data bersih'}${score !== undefined ? ' · Skor ' + score + '/100' : ''}</p>
+      </div>`);
+  }
+
+  if (data.optimization) {
+    const opt   = data.optimization;
+    const score = opt.score;
+    const grade = opt.grade;
+    const gradeColor = {
+      'A': 'text-emerald-400', 'B': 'text-blue-400',
+      'C': 'text-amber-400',   'D': 'text-orange-400', 'F': 'text-red-400'
+    }[grade] || 'text-slate-400';
+    const barColor = score >= 90 ? 'bg-emerald-500' : score >= 70 ? 'bg-amber-500' : 'bg-red-500';
+    const barW = score;
+
+    let findingsHtml = '';
+    if (opt.findings && opt.findings.length > 0) {
+      findingsHtml = opt.findings.map(f => {
+        const catColor = {
+          'structural': 'text-purple-400', 'performance': 'text-orange-400',
+          'correctness': 'text-red-400', 'best_practice': 'text-blue-400'
+        }[f.category] || 'text-slate-400';
+        return `<div class="mt-2 p-2 bg-slate-900/60 rounded-lg">
+          <p class="text-xs font-semibold ${catColor}">[${f.category}] ${escapeHtml(f.name)} <span class="text-red-400">-${f.penalty}pt</span></p>
+          <p class="text-xs text-slate-500 mt-0.5">${escapeHtml(f.description)}</p>
+          <p class="text-xs text-slate-400 mt-0.5">💡 ${escapeHtml(f.suggestion)}</p>
+        </div>`;
+      }).join('');
+    } else {
+      findingsHtml = '<p class="text-xs text-emerald-400 mt-1">✅ Tidak ada masalah ditemukan!</p>';
+    }
+
+    let explainWarn = '';
+    if (opt.explain_info && opt.explain_info.warnings && opt.explain_info.warnings.length > 0) {
+      explainWarn = opt.explain_info.warnings.map(w =>
+        `<p class="text-xs text-amber-400 mt-1">${escapeHtml(w)}</p>`
+      ).join('');
+    }
+
+    steps.push(`
+      <div class="process-step rounded-xl bg-slate-800/50 border border-slate-700/50 p-3">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="w-5 h-5 rounded-full bg-indigo-700 text-indigo-300 text-xs flex items-center justify-center font-bold">5</span>
+          <span class="text-xs font-semibold text-slate-300">Query Optimization Score</span>
+          <span class="ml-auto text-sm font-bold ${gradeColor}">Grade ${grade}</span>
+        </div>
+
+        <!-- Score Bar -->
+        <div class="flex items-center gap-2 mb-2">
+          <div class="flex-1 bg-slate-700 rounded-full h-2 overflow-hidden">
+            <div class="${barColor} h-2 rounded-full transition-all" style="width:${barW}%"></div>
+          </div>
+          <span class="text-xs font-bold text-white w-10 text-right">${score}/100</span>
+        </div>
+
+        <!-- Category scores -->
+        <div class="grid grid-cols-2 gap-1 mb-2">
+          ${Object.entries(opt.categories || {}).map(([cat, info]) => `
+            <div class="text-center p-1.5 bg-slate-900/50 rounded-lg">
+              <p class="text-xs text-slate-500 capitalize">${cat.replace('_',' ')}</p>
+              <p class="text-xs font-bold ${info.pct >= 80 ? 'text-emerald-400' : info.pct >= 60 ? 'text-amber-400' : 'text-red-400'}">${info.pct}%</p>
+            </div>
+          `).join('')}
+        </div>
+
+        <!-- Summary -->
+        <p class="text-xs text-slate-400 mb-2">${escapeHtml(opt.summary)}</p>
+
+        ${explainWarn}
+
+        <!-- Findings (collapsible) -->
+        ${opt.findings && opt.findings.length > 0 ? `
+        <details class="mt-1">
+          <summary class="text-xs text-slate-500 cursor-pointer hover:text-slate-300">
+            ${opt.findings.length} temuan — klik untuk detail
+          </summary>
+          ${findingsHtml}
+        </details>` : findingsHtml}
+
+        ${opt.optimized_sql ? `
+        <div class="mt-2 p-2 bg-emerald-950/30 rounded-lg border border-emerald-800/50">
+          <p class="text-xs text-emerald-400 font-semibold mb-1">✨ SQL yang Dioptimasi:</p>
+          <pre class="text-xs text-slate-300 font-mono overflow-x-auto whitespace-pre-wrap">${escapeHtml(opt.optimized_sql)}</pre>
+        </div>` : ''}
+      </div>`);
+  }
+
+  if (data.error && (!data.guard || !data.guard.allowed === false)) {
+    steps.push(`
+      <div class="process-step rounded-xl bg-red-950/20 border border-red-800/50 p-3">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="w-5 h-5 rounded-full bg-red-700 text-red-300 text-xs flex items-center justify-center font-bold">!</span>
+          <span class="text-xs font-semibold text-red-400">Error / Blokir</span>
+        </div>
+        <p class="text-xs text-red-300 leading-relaxed">${escapeHtml(data.error)}</p>
+      </div>`);
+  }
+
+  if (steps.length === 0) {
+    panel.innerHTML = `<div class="text-center py-8"><p class="text-xs text-slate-600">Belum ada proses.</p></div>`;
+    return;
+  }
+
+  panel.innerHTML = steps.join('');
+}
+
+
+
+async function sendQuestion() {
+  const input = document.getElementById('chat-input');
+  const question = input.value.trim();
+  if (!question) return;
+
+  input.value = '';
+  autoResize(input);
+  document.getElementById('export-section').classList.add('hidden');
+  document.getElementById('send-btn').disabled = true;
+
+  addBubble('user', question);
+  addLoadingBubble();
+
+  chatHistory.push({ role: "user", content: question });
+  if (chatHistory.length > 12) chatHistory = chatHistory.slice(-12);
+
+  try {
+    const res = await fetch('/api/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question, chat_history: chatHistory })
+    });
+    const data = await res.json();
+    console.log(data)
+    data.question = question;
+
+    removeLoadingBubble();
+    updateProcessPanel(data);
+
+    if (data.needs_confirm && data.guard && data.guard.needs_confirm) {
+      pendingSQL = data.sql;
+      pendingQuestion = question;
+
+      document.getElementById('confirm-sql').textContent = data.sql;
+
+      document.getElementById('confirm-modal').classList.remove('hidden');
+
+      document.getElementById('confirm-execute-btn').onclick = executeConfirmed;
+
+    } else if (data.error && !data.answer?.includes('ditolak') && !data.guard) {
+      addBubble('bot', data.error);
+    } else {
+      addBubble('bot', data.answer, data.table, data.visualization, {
+        insight:      data.insight      || null,
+        statistics:   data.statistics   || null,
+        data_quality: data.data_quality || null,
+        is_report:    data.is_report    || false,
+      });
+
+      if (data.table && data.table.columns && data.table.columns.length > 0) {
+        lastResult  = data.table;
+        lastPayload = data;
+        document.getElementById('export-section').classList.remove('hidden');
+      }
+
+      if (data.sql && !data.needs_confirm) {
+        chatHistory.push({ role: "assistant", content: data.answer, sql: data.sql });
+        if (chatHistory.length > 12) chatHistory = chatHistory.slice(-12);
+      }
+    }
+
+    if (data.guard && !data.guard.allowed) {
+      addBubble('bot', data.guard.message);
+    }
+
+  } catch (err) {
+    removeLoadingBubble();
+    addBubble('bot', err);
+  }
+
+  document.getElementById('send-btn').disabled = false;
+  input.focus();
+}
+
+
+async function executeConfirmed() {
+  document.getElementById('confirm-modal').classList.add('hidden');
+  addLoadingBubble();
+
+  try {
+    const res = await fetch('/api/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        question: pendingQuestion,
+        pre_sql: pendingSQL,
+        force_execute: true
+      })
+    });
+    const data = await res.json();
+    removeLoadingBubble();
+    updateProcessPanel(data);
+    addBubble('bot', data.answer, data.table, data.visualization);
+
+    if (data.table && data.table.columns && data.table.columns.length > 0) {
+      lastResult = data.table;
+      document.getElementById('export-section').classList.remove('hidden');
+    }
+  } catch (err) {
+    removeLoadingBubble();
+    addBubble('bot', 'Eksekusi gagal. Terjadi kesalahan server.');
+  }
+}
+
+
+async function exportResult(format) {
+  if (!lastResult) return;
+
+  const endpoint = format === 'csv' ? '/api/export/csv' : '/api/export/excel';
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ columns: lastResult.columns, rows: lastResult.rows })
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      alert('Export gagal: ' + (err.error || 'Unknown error'));
+      return;
+    }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = format === 'csv' ? 'hasil_query.csv' : 'hasil_query.xlsx';
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    alert('Export gagal: ' + e.message);
+  }
+}
+
+
+function toggleTable(id) {
+  const el = document.getElementById(id);
+  el.classList.toggle('hidden');
+}
+
+async function reloadSchema() {
+  await fetch('/api/reload-schema', { method: 'POST' });
+  location.reload();
+}
+
+async function clearHistory() {
+  document.getElementById('clear-history-modal').classList.remove('hidden');
+}
+
+async function confirmClearHistory() {
+  document.getElementById('clear-history-modal').classList.add('hidden');
+  
+  chatHistory = [];
+  try {
+    await fetch('/api/clear-history', { method: 'POST' });
+    location.reload();
+  } catch (error) {
+    console.error('Error clearing history:', error);
+    alert('Gagal menghapus riwayat. Silakan coba lagi.');
+  }
+}
+
+
+async function exportReportPDF() {
+  if (!lastPayload) return;
+  try {
+    const body = {
+      question:   lastPayload.question   || '',
+      columns:    lastPayload.table?.columns || [],
+      rows:       lastPayload.table?.rows    || [],
+      answer:     lastPayload.answer     || '',
+      insight:    lastPayload.insight    || '',
+      sql:        lastPayload.sql        || '',
+      statistics: lastPayload.statistics || {},
+    };
+    const res = await fetch('/api/export/report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) { alert('Gagal membuat laporan.'); return; }
+    const html = await res.text();
+    const w = window.open('', '_blank');
+    w.document.write(html);
+    w.document.close();
+  } catch (e) {
+    alert('Export laporan gagal: ' + e.message);
+  }
+}
+
+
+let _currentModelId = '{{ active_model }}';
+
+async function switchModel(modelId) {
+  if (modelId === _currentModelId) return;
+
+  const statusEl = document.getElementById('model-status');
+  statusEl.textContent = 'Mengganti model...';
+  statusEl.classList.remove('hidden');
+
+  try {
+    const res = await fetch('/api/model/switch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model_id: modelId })
+    });
+    const data = await res.json();
+
+    if (res.ok && data.success) {
+      _currentModelId = modelId;
+
+      document.querySelectorAll('.model-btn').forEach(btn => {
+        const isActive = btn.id === 'model-btn-' + modelId.replace(/[._]/g, '-');
+        if (isActive) {
+          btn.className = btn.className
+            .replace('bg-slate-800/40 border-slate-700/50 text-slate-400 hover:border-slate-600 hover:text-slate-200', '')
+            + ' bg-brand-900/40 border-brand-700 text-white';
+        } else {
+          btn.className = btn.className
+            .replace('bg-brand-900/40 border-brand-700 text-white', '')
+            + ' bg-slate-800/40 border-slate-700/50 text-slate-400 hover:border-slate-600 hover:text-slate-200';
+        }
+      });
+
+      const indicator = document.getElementById('model-indicator');
+      if (indicator && data.model_info) {
+        indicator.textContent = data.model_info.badge + ' ' + data.model_info.label;
+        indicator.title = data.model_info.desc;
+      }
+
+      statusEl.textContent = '✓ ' + data.message;
+      statusEl.className = 'mt-2 text-xs text-emerald-400';
+      setTimeout(() => statusEl.classList.add('hidden'), 2500);
+
+    } else {
+      const errMsg = data.detail || 'Gagal mengganti model';
+      statusEl.textContent = '⚠ ' + errMsg;
+      statusEl.className = 'mt-2 text-xs text-red-400';
+      setTimeout(() => statusEl.classList.add('hidden'), 4000);
+    }
+  } catch (e) {
+    statusEl.textContent = '⚠ Koneksi error';
+    statusEl.className = 'mt-2 text-xs text-red-400';
+    setTimeout(() => statusEl.classList.add('hidden'), 3000);
+  }
+}
+
+scrollBottom();
+
+let selectedFotoFile = null;
+let uploadedFotoPath = '';
+
+function closeFotoModal() {
+  document.getElementById('foto-modal').classList.add('hidden');
+  // reset state
+  selectedFotoFile = null;
+  document.getElementById('foto-preview').classList.add('hidden');
+  document.getElementById('foto-status').classList.add('hidden');
+  document.getElementById('foto-result').classList.add('hidden');
+  document.getElementById('foto-file').value = '';
+}
+
+function handleFotoSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  selectedFotoFile = file;
+  showFotoPreview(file);
+}
+
+function handleFotoDrop(event) {
+  event.preventDefault();
+  document.getElementById('foto-drop-zone').classList.remove('border-brand-500');
+  const file = event.dataTransfer.files[0];
+  if (!file) return;
+  selectedFotoFile = file;
+  showFotoPreview(file);
+}
+
+function showFotoPreview(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    document.getElementById('foto-preview-img').src = e.target.result;
+    document.getElementById('foto-preview-name').textContent = file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+    document.getElementById('foto-preview').classList.remove('hidden');
+  };
+  reader.readAsDataURL(file);
+}
+
+async function doUploadFoto() {
+  if (!selectedFotoFile) { alert('Pilih foto terlebih dahulu.'); return; }
+
+  const statusEl = document.getElementById('foto-status');
+  statusEl.className = 'mb-4 p-3 rounded-lg text-sm bg-brand-900/30 text-brand-300 border border-brand-800';
+  statusEl.textContent = 'Mengupload foto...';
+  statusEl.classList.remove('hidden');
+  document.getElementById('foto-result').classList.add('hidden');
+
+  const formData = new FormData();
+  formData.append('file', selectedFotoFile);
+
+  try {
+    const res = await fetch('/api/upload/foto', { method: 'POST', body: formData });
+    const data = await res.json();
+
+    if (res.ok && data.success) {
+      statusEl.className = 'mb-4 p-3 rounded-lg text-sm bg-emerald-900/30 text-emerald-300 border border-emerald-800';
+      statusEl.textContent = '✅ ' + data.message;
+      uploadedFotoPath = data.path;
+      document.getElementById('foto-result-path').value = data.path;
+      document.getElementById('foto-result').classList.remove('hidden');
+    } else {
+      const errMsg = data.detail || data.error || 'Upload gagal';
+      statusEl.className = 'mb-4 p-3 rounded-lg text-sm bg-red-900/30 text-red-300 border border-red-800';
+      statusEl.textContent = '❌ ' + errMsg;
+    }
+  } catch (e) {
+    statusEl.className = 'mb-4 p-3 rounded-lg text-sm bg-red-900/30 text-red-300 border border-red-800';
+    statusEl.textContent = 'Upload gagal: ' + e.message;
+  }
+}
+
+function copyFotoPath() {
+  const input = document.getElementById('foto-result-path');
+  navigator.clipboard.writeText(input.value).then(() => {
+    const btn = input.nextElementSibling;
+    btn.title = 'Tersalin!';
+    setTimeout(() => btn.title = 'Salin path', 1500);
+  });
+}
+
+function pastePathToChat() {
+  if (!uploadedFotoPath) return;
+  const chatInput = document.getElementById('chat-input');
+  const pos = chatInput.selectionStart;
+  const before = chatInput.value.substring(0, pos);
+  const after = chatInput.value.substring(pos);
+  chatInput.value = before + uploadedFotoPath + after;
+  chatInput.focus();
+  autoResize(chatInput);
+  closeFotoModal();
+}
+
+</script>
+{% endblock %}

@@ -1,0 +1,47 @@
+# requirements.txt — NL2SQL Agent (FastAPI)
+# Install: pip install -r requirements.txt
+
+# ── Web Framework ─────────────────────────────────────────────
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+python-multipart==0.0.9       # untuk Form upload
+jinja2==3.1.4                 # template HTML
+aiofiles==23.2.1              # static files
+
+# ── Auth ──────────────────────────────────────────────────────
+python-jose[cryptography]==3.3.0   # JWT
+werkzeug>=3.0.0                    # password hashing
+
+# ── LangChain & LLM ──────────────────────────────────────────
+langchain==0.2.16
+langchain-community==0.2.16
+langchain-groq==0.1.9
+langchain-core==0.2.43
+langchain-anthropic==0.1.23
+
+# ── Database ──────────────────────────────────────────────────
+sqlalchemy<2.0
+
+# ── Environment ───────────────────────────────────────────────
+python-dotenv==1.0.1
+
+# ── Export ────────────────────────────────────────────────────
+openpyxl==3.1.5
+
+# ── Data Processing (CSV upload) ─────────────────────────────
+pandas==2.2.2
+
+# ── Visualization ─────────────────────────────────────────────
+matplotlib>=3.8.0
+seaborn>=0.13.0
+
+# ── Data Visualization ────────────────────────────────────────
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# ── Embeddings (Intent + Schema Retrieval) ────────────────────
+sentence-transformers>=2.2.0
+
+# ── Cara menjalankan ─────────────────────────────────────────
+# uvicorn main:app --reload
+# atau: python main.py

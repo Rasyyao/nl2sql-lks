@@ -1,0 +1,365 @@
+{% extends "layout.html" %}
+{% block title %}Edukasi AI Agent{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 py-8">
+
+  <!-- Header -->
+  <div class="text-center mb-10">
+    <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-brand-900/40 border border-brand-800 text-brand-400 text-xs font-semibold mb-4">
+      <i data-lucide="graduation-cap" class="w-3.5 h-3.5"></i>
+      Panduan Edukasi
+    </div>
+    <h1 class="text-3xl font-bold text-white mb-3">NL2SQL Agent</h1>
+    <p class="text-slate-400 text-base font-light max-w-xl mx-auto leading-relaxed">
+      Sistem AI multi-intent yang mengubah pertanyaan bahasa manusia menjadi query database,
+      grafik, insight, statistik, dan laporan — secara otomatis.
+    </p>
+  </div>
+
+  <!-- Section 1: Apa itu NL2SQL -->
+  <div class="edu-card bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-5">
+    <div class="flex items-start gap-4">
+      <div class="w-10 h-10 rounded-xl bg-brand-800/50 border border-brand-700/50 flex items-center justify-center flex-shrink-0">
+        <i data-lucide="brain" class="w-5 h-5 text-brand-400"></i>
+      </div>
+      <div class="flex-1">
+        <h2 class="text-lg font-bold text-white mb-2">Apa itu NL2SQL Agent?</h2>
+        <p class="text-slate-400 text-sm leading-relaxed mb-4">
+          <strong class="text-white">NL2SQL Agent</strong> mengubah pertanyaan bahasa natural menjadi SQL, mengeksekusinya, lalu
+          menjalankan post-processor cerdas sesuai niat user — visualisasi, insight AI, statistik pandas, perbandingan, laporan PDF, atau cek kualitas data.
+        </p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+            <p class="text-xs font-bold text-slate-500 uppercase mb-2">Input (Bahasa Natural)</p>
+            <p class="text-sm text-emerald-300 font-medium">"Tampilkan grafik dan jelaskan rata-rata nilai per kelas"</p>
+          </div>
+          <div class="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
+            <p class="text-xs font-bold text-slate-500 uppercase mb-2">Output (Multi-komponen)</p>
+            <div class="space-y-1 text-xs font-mono">
+              <div class="text-brand-300">→ SQL query (otomatis)</div>
+              <div class="text-purple-300">→ Grafik bar chart</div>
+              <div class="text-cyan-300">→ Statistik: mean, std, min, max</div>
+              <div class="text-violet-300">→ Insight AI 3-4 poin</div>
+              <div class="text-red-300">→ Tombol export PDF/Excel/CSV</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 2: 9 Intent Classifier -->
+  <div class="edu-card bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-5">
+    <div class="flex items-start gap-4">
+      <div class="w-10 h-10 rounded-xl bg-violet-800/50 border border-violet-700/50 flex items-center justify-center flex-shrink-0">
+        <i data-lucide="tag" class="w-5 h-5 text-violet-400"></i>
+      </div>
+      <div class="flex-1">
+        <h2 class="text-lg font-bold text-white mb-1">Intent Classifier — 9 Intent</h2>
+        <p class="text-sm text-slate-400 mb-4 leading-relaxed">
+          Sebelum SQL dibuat, sistem menentukan <em>niat</em> user. Intent menentukan post-processor mana yang dijalankan setelah eksekusi SQL.
+        </p>
+
+        <div class="space-y-2">
+          {% set intents = [
+            ("data_query",    "brand",   "Tanya database standar", "tampilkan semua siswa kelas XII", "Default — NL2SQL murni tanpa post-processor tambahan"),
+            ("visualization", "indigo",  "Grafik / Chart", "tampilkan grafik nilai per kelas", "Otomatis generate chart (bar, pie, line, scatter) dari hasil query"),
+            ("insight",       "purple",  "Analisis / Insight AI", "insight dari data nilai siswa", "LLM membaca DataFrame dan menulis 3-4 insight penting"),
+            ("statistic",     "cyan",    "Statistik Deskriptif", "hitung standar deviasi nilai", "Pandas menghitung mean, median, std, min, max — tanpa LLM"),
+            ("comparison",    "amber",   "Perbandingan", "bandingkan kelas XII RPL 1 vs XII RPL 2", "Force chart + penjelasan AI tentang perbedaan antar entitas"),
+            ("report",        "red",     "Laporan Lengkap", "buatkan laporan nilai siswa", "Gabungan: tabel + grafik + insight + statistik + export PDF"),
+            ("data_quality",  "orange",  "Kualitas Data", "ada data aneh di tabel nilai?", "Pandas cek null, duplikat baris, outlier (metode IQR) — tanpa LLM"),
+            ("greeting",      "slate",   "Sapaan", "halo / selamat pagi", "Dijawab langsung tanpa memanggil LLM atau database"),
+            ("schema_question","slate",  "Struktur Database", "tabel apa saja di database?", "Menampilkan daftar tabel dan kolom dari schema cache"),
+          ] %}
+
+          {% for intent, color, label, example, desc in intents %}
+          <div class="flex gap-3 items-start bg-slate-800/30 rounded-xl p-3 border border-slate-700/30">
+            <span class="px-2 py-0.5 rounded-md text-xs font-mono font-bold bg-{{ color }}-900/40 text-{{ color }}-400 border border-{{ color }}-800 flex-shrink-0 mt-0.5">{{ intent }}</span>
+            <div class="min-w-0">
+              <p class="text-xs font-semibold text-white">{{ label }}</p>
+              <p class="text-xs text-slate-500 mt-0.5">{{ desc }}</p>
+              <p class="text-xs text-emerald-400 font-mono mt-1 italic">"{{ example }}"</p>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+
+        <div class="mt-4 bg-slate-950/50 rounded-xl p-3 border border-slate-700/30">
+          <p class="text-xs font-bold text-amber-400 mb-1">Multi-step Orchestrator</p>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            Jika pertanyaan mengandung 2+ kelompok fitur (grafik + jelaskan, analisis + export, dst.),
+            sistem otomatis mendeteksi sebagai <span class="text-red-400 font-mono">report</span> dan menjalankan semua post-processor sekaligus.
+            Contoh: <span class="text-emerald-400 italic">"tampilkan grafik dan jelaskan datanya"</span> → intent <span class="text-red-400 font-mono">report</span>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 3: Cara Kerja Agent (Pipeline Baru) -->
+  <div class="edu-card bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-5">
+    <div class="flex items-start gap-4">
+      <div class="w-10 h-10 rounded-xl bg-purple-800/50 border border-purple-700/50 flex items-center justify-center flex-shrink-0">
+        <i data-lucide="workflow" class="w-5 h-5 text-purple-400"></i>
+      </div>
+      <div class="flex-1">
+        <h2 class="text-lg font-bold text-white mb-4">Pipeline Lengkap (Step-by-Step)</h2>
+
+        <div class="space-y-3">
+          {% set steps = [
+            ("1", "Intent Classifier", "Pertanyaan user diklasifikasikan ke salah satu dari 9 intent. Greeting/schema dijawab langsung tanpa SQL. Intent lain lanjut ke pipeline.", "brand"),
+            ("2", "Follow-up Context Memory", "Riwayat percakapan (hingga 6 giliran terakhir) dikirim bersama pertanyaan. LLM bisa memahami konteks: 'Yang di atas 80 saja' merujuk ke query sebelumnya.", "blue"),
+            ("3", "Schema Loading + Prompt Build", "Schema database (tabel, kolom, relasi, contoh data) digabung dengan pertanyaan + riwayat menjadi prompt terstruktur.", "slate"),
+            ("4", "LLM Generate SQL", "Model AI (Groq LLaMA atau Claude) memproses prompt dan menghasilkan SQL query yang tepat.", "violet"),
+            ("5", "SQL Cleaning", "Output LLM dibersihkan: hapus markdown, ekstrak SQL murni, validasi keyword pertama.", "indigo"),
+            ("6", "Guard (RBAC + Demo Mode)", "SQL diperiksa: role 'user' hanya boleh SELECT. Operasi berbahaya (DELETE, UPDATE) butuh konfirmasi admin.", "amber"),
+            ("7", "Cache Check", "Query SELECT dicek di cache. Jika hit → langsung kembalikan hasil tanpa eksekusi ulang.", "cyan"),
+            ("8", "EXPLAIN + Eksekusi SQL", "EXPLAIN QUERY PLAN dijalankan untuk edukasi. Lalu SQL dieksekusi ke SQLite. Jika error → Auto-Repair via LLM.", "emerald"),
+            ("9", "Post-Processing (intent-aware)", "Sesuai intent: generate chart (viz), hitung stats pandas (statistic), insight LLM (insight), cek kualitas (data_quality), gabung semua (report).", "purple"),
+            ("10", "Natural Answer + Audit", "LLM mengubah hasil tabel menjadi jawaban bahasa Indonesia. Semua aktivitas dicatat di audit log.", "teal"),
+          ] %}
+
+          {% for num, title, desc, color in steps %}
+          <div class="flex gap-3 items-start">
+            <div class="w-6 h-6 rounded-full bg-{{ color }}-800/50 border border-{{ color }}-700 text-{{ color }}-300 text-xs flex items-center justify-center font-bold flex-shrink-0 mt-0.5">{{ num }}</div>
+            <div>
+              <p class="text-sm font-semibold text-white">{{ title }}</p>
+              <p class="text-xs text-slate-400 leading-relaxed mt-0.5">{{ desc }}</p>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 4: Diagram Alur Baru -->
+  <div class="edu-card bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-5">
+    <div class="flex items-start gap-4">
+      <div class="w-10 h-10 rounded-xl bg-cyan-800/50 border border-cyan-700/50 flex items-center justify-center flex-shrink-0">
+        <i data-lucide="git-branch" class="w-5 h-5 text-cyan-400"></i>
+      </div>
+      <div class="flex-1">
+        <h2 class="text-lg font-bold text-white mb-4">Diagram Alur Pipeline</h2>
+
+        <div class="bg-slate-950 rounded-xl p-4 font-mono text-xs overflow-x-auto">
+          <div class="text-slate-400 min-w-max space-y-2">
+
+            <div class="flex items-center gap-2">
+              <span class="px-3 py-1.5 bg-brand-800/50 border border-brand-700 text-brand-300 rounded-lg">User Input + Chat History</span>
+              <span class="text-slate-600">───→</span>
+              <span class="px-3 py-1.5 bg-violet-800/50 border border-violet-700 text-violet-300 rounded-lg">Intent Classifier (9 intent)</span>
+            </div>
+
+            <div class="flex items-center gap-6 ml-4">
+              <div class="flex flex-col items-center gap-1">
+                <span class="text-slate-600">↓ non-SQL</span>
+                <span class="px-2 py-1 bg-slate-700 border border-slate-600 text-slate-300 rounded-lg text-xs">Jawab Langsung</span>
+              </div>
+              <div class="flex flex-col items-center gap-1">
+                <span class="text-slate-600">↓ SQL intent</span>
+                <span class="px-2 py-1 bg-purple-800/50 border border-purple-700 text-purple-300 rounded-lg text-xs">NL2SQL → SQL</span>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2 ml-36">
+              <span class="text-slate-600">───→</span>
+              <span class="px-3 py-1.5 bg-amber-800/50 border border-amber-700 text-amber-300 rounded-lg">Guard (RBAC)</span>
+              <span class="text-slate-600">───→</span>
+              <span class="px-3 py-1.5 bg-emerald-800/50 border border-emerald-700 text-emerald-300 rounded-lg">Execute SQL</span>
+            </div>
+
+            <div class="flex items-center gap-2 ml-36">
+              <span class="text-slate-600">↓ DataFrame hasil</span>
+            </div>
+
+            <div class="flex items-center gap-2 flex-wrap ml-36">
+              <span class="text-slate-600">→ POST-PROCESSOR:</span>
+              <span class="px-2 py-1 bg-indigo-800/50 border border-indigo-700 text-indigo-300 rounded-lg">📊 Chart</span>
+              <span class="px-2 py-1 bg-purple-800/50 border border-purple-700 text-purple-300 rounded-lg">🧠 Insight AI</span>
+              <span class="px-2 py-1 bg-cyan-800/50 border border-cyan-700 text-cyan-300 rounded-lg">📈 Stats</span>
+              <span class="px-2 py-1 bg-orange-800/50 border border-orange-700 text-orange-300 rounded-lg">🔍 Quality</span>
+            </div>
+
+            <div class="flex items-center gap-2 ml-36">
+              <span class="text-slate-600">───→</span>
+              <span class="px-3 py-1.5 bg-teal-800/50 border border-teal-700 text-teal-300 rounded-lg">Natural Answer</span>
+              <span class="text-slate-600">───→</span>
+              <span class="px-3 py-1.5 bg-slate-700 border border-slate-600 text-slate-300 rounded-lg">Audit Log</span>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 5: Fitur-Fitur Baru -->
+  <div class="edu-card bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-5">
+    <div class="flex items-start gap-4">
+      <div class="w-10 h-10 rounded-xl bg-emerald-800/50 border border-emerald-700/50 flex items-center justify-center flex-shrink-0">
+        <i data-lucide="sparkles" class="w-5 h-5 text-emerald-400"></i>
+      </div>
+      <div class="flex-1">
+        <h2 class="text-lg font-bold text-white mb-4">Fitur-Fitur Utama</h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+          <div class="bg-purple-950/30 border border-purple-800/40 rounded-xl p-4">
+            <p class="text-sm font-bold text-purple-300 mb-1">🧠 Data Insight Generator</p>
+            <p class="text-xs text-slate-400 leading-relaxed">LLM membaca DataFrame dan menghasilkan 3-4 insight penting: tren, pola, nilai ekstrem, anomali. Dipicu otomatis oleh intent <span class="font-mono text-purple-400">insight</span>, <span class="font-mono text-purple-400">comparison</span>, dan <span class="font-mono text-purple-400">report</span>.</p>
+          </div>
+
+          <div class="bg-cyan-950/30 border border-cyan-800/40 rounded-xl p-4">
+            <p class="text-sm font-bold text-cyan-300 mb-1">📈 Statistical Helper</p>
+            <p class="text-xs text-slate-400 leading-relaxed">Pandas menghitung statistik deskriptif (mean, median, std, min, max) dari kolom numerik — tanpa memanggil LLM. Cepat dan deterministik. Dipicu oleh intent <span class="font-mono text-cyan-400">statistic</span> dan <span class="font-mono text-cyan-400">report</span>.</p>
+          </div>
+
+          <div class="bg-amber-950/30 border border-amber-800/40 rounded-xl p-4">
+            <p class="text-sm font-bold text-amber-300 mb-1">📊 Comparison Mode</p>
+            <p class="text-xs text-slate-400 leading-relaxed">Kata kunci "bandingkan" atau "vs" memicu intent <span class="font-mono text-amber-400">comparison</span>. Sistem generate chart perbandingan otomatis dan LLM menulis penjelasan perbedaan antar entitas yang dibandingkan.</p>
+          </div>
+
+          <div class="bg-red-950/30 border border-red-800/40 rounded-xl p-4">
+            <p class="text-sm font-bold text-red-300 mb-1">📑 Report Generator</p>
+            <p class="text-xs text-slate-400 leading-relaxed">"Buatkan laporan" atau pertanyaan multi-step memicu intent <span class="font-mono text-red-400">report</span>. Menghasilkan tabel + grafik + insight AI + statistik + tombol export CSV, Excel, dan PDF langsung di chat.</p>
+          </div>
+
+          <div class="bg-blue-950/30 border border-blue-800/40 rounded-xl p-4">
+            <p class="text-sm font-bold text-blue-300 mb-1">💬 Follow-up Context Memory</p>
+            <p class="text-xs text-slate-400 leading-relaxed">Riwayat 6 giliran percakapan terakhir dikirim ke LLM di setiap request. Query lanjutan seperti <em>"yang di atas 80 saja"</em> atau <em>"urutkan dari terbesar"</em> merujuk konteks query sebelumnya secara akurat.</p>
+          </div>
+
+          <div class="bg-orange-950/30 border border-orange-800/40 rounded-xl p-4">
+            <p class="text-sm font-bold text-orange-300 mb-1">🔍 Data Quality Checker</p>
+            <p class="text-xs text-slate-400 leading-relaxed">Pandas menganalisis DataFrame untuk mendeteksi: nilai <strong class="text-white">null</strong>, baris <strong class="text-white">duplikat</strong>, dan nilai <strong class="text-white">outlier</strong> menggunakan metode IQR (Interquartile Range). Diberi skor kualitas 0-100.</p>
+          </div>
+
+          <div class="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 md:col-span-2">
+            <p class="text-sm font-bold text-slate-300 mb-1">⚡ Multi-step Task Orchestrator</p>
+            <p class="text-xs text-slate-400 leading-relaxed">Sistem mendeteksi secara otomatis jika pertanyaan mengandung 2+ kelompok fitur sekaligus. Contoh: <em class="text-emerald-400">"tampilkan grafik dan jelaskan datanya"</em> (fitur visual + fitur analisis = 2 kelompok) → otomatis dieksekusi sebagai <span class="font-mono text-red-400">report</span> yang menjalankan semua post-processor secara berurutan.</p>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 6: Multi-Model Support -->
+  <div class="edu-card bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-5">
+    <div class="flex items-start gap-4">
+      <div class="w-10 h-10 rounded-xl bg-brand-800/50 border border-brand-700/50 flex items-center justify-center flex-shrink-0">
+        <i data-lucide="cpu" class="w-5 h-5 text-brand-400"></i>
+      </div>
+      <div class="flex-1">
+        <h2 class="text-lg font-bold text-white mb-4">Multi-Model Support</h2>
+        <p class="text-sm text-slate-400 mb-4">Sistem mendukung 4 model AI dari 2 provider berbeda. Bisa diganti langsung di sidebar tanpa restart server.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="bg-amber-950/20 border border-amber-800/40 rounded-xl p-4">
+            <p class="text-xs font-bold text-amber-400 uppercase mb-2">⚡ Groq (LLaMA)</p>
+            <div class="space-y-2 text-xs text-slate-400">
+              <div>
+                <p class="text-white font-semibold">LLaMA 3.1 8B Instant</p>
+                <p>Ringan, sangat cepat. Cocok query sederhana dan penggunaan sehari-hari.</p>
+              </div>
+              <div>
+                <p class="text-white font-semibold">LLaMA 3.3 70B Versatile</p>
+                <p>Akurasi tinggi. Cocok query kompleks dengan banyak JOIN dan subquery.</p>
+              </div>
+            </div>
+          </div>
+          <div class="bg-brand-950/20 border border-brand-800/40 rounded-xl p-4">
+            <p class="text-xs font-bold text-brand-400 uppercase mb-2">✦ Anthropic (Claude)</p>
+            <div class="space-y-2 text-xs text-slate-400">
+              <div>
+                <p class="text-white font-semibold">Claude Sonnet 4.6</p>
+                <p>Cerdas dan seimbang. Unggul untuk query kompleks, insight mendalam, dan penjelasan detail.</p>
+              </div>
+              <div>
+                <p class="text-white font-semibold">Claude Haiku 4.5</p>
+                <p>Efisien dan hemat. Performa cepat untuk query sehari-hari dan penggunaan tinggi volume.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 7: RBAC -->
+  <div class="edu-card bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-5">
+    <div class="flex items-start gap-4">
+      <div class="w-10 h-10 rounded-xl bg-amber-800/50 border border-amber-700/50 flex items-center justify-center flex-shrink-0">
+        <i data-lucide="shield" class="w-5 h-5 text-amber-400"></i>
+      </div>
+      <div class="flex-1">
+        <h2 class="text-lg font-bold text-white mb-4">Role-Based Access Control (RBAC)</h2>
+        <p class="text-sm text-slate-400 mb-4">RBAC memberikan hak akses berbeda berdasarkan peran. Semua aktivitas dicatat di audit log.</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-emerald-950/30 border border-emerald-800/50 rounded-xl p-4">
+            <p class="text-sm font-bold text-emerald-400 mb-2">👤 Role: user</p>
+            <ul class="text-xs text-slate-400 space-y-1">
+              <li>✅ Boleh: SELECT, semua fitur analisis</li>
+              <li>❌ Ditolak: INSERT, UPDATE, DELETE, DROP</li>
+              <li>📊 Akses penuh ke: chart, insight, statistik, laporan</li>
+              <li>🎯 Cocok untuk: siswa, pegawai, analis data</li>
+            </ul>
+          </div>
+          <div class="bg-amber-950/30 border border-amber-800/50 rounded-xl p-4">
+            <p class="text-sm font-bold text-amber-400 mb-2">🛡️ Role: admin</p>
+            <ul class="text-xs text-slate-400 space-y-1">
+              <li>✅ Boleh: semua operasi SQL</li>
+              <li>⚠️ Operasi berbahaya: butuh konfirmasi + EXPLAIN</li>
+              <li>📋 Semua aksi tercatat lengkap di audit log</li>
+              <li>🔒 Bisa aktifkan Demo Mode (blok semua non-SELECT)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 8: Stack Teknologi -->
+  <div class="edu-card bg-slate-900 border border-slate-800 rounded-2xl p-6 mb-8">
+    <div class="flex items-start gap-4">
+      <div class="w-10 h-10 rounded-xl bg-slate-700/50 border border-slate-600/50 flex items-center justify-center flex-shrink-0">
+        <i data-lucide="layers" class="w-5 h-5 text-slate-400"></i>
+      </div>
+      <div class="flex-1">
+        <h2 class="text-lg font-bold text-white mb-4">Stack Teknologi</h2>
+        <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {% set techs = [
+            ("🐍", "Python 3.10", "Bahasa utama. Ekosistem AI & data science terlengkap"),
+            ("⚡", "FastAPI", "Backend async modern dengan auto-docs Swagger & Redoc"),
+            ("🔗", "LangChain 0.2", "Framework LLM: chain, prompt template, output parser"),
+            ("🤖", "Groq + Claude", "Provider LLM: LLaMA ultra-cepat & Claude cerdas via Anthropic"),
+            ("🐼", "Pandas", "Statistik, kualitas data, dan manipulasi DataFrame"),
+            ("📊", "Matplotlib/Seaborn", "Generate chart dark-theme: bar, pie, line, scatter, histogram"),
+            ("🗃️", "SQLite", "Database ringan berbasis file dengan EXPLAIN QUERY PLAN"),
+            ("🎨", "Tailwind CSS", "Utility-first CSS untuk UI modern dark-theme"),
+            ("🔒", "JWT + RBAC", "Autentikasi cookie-based + hak akses berbasis role"),
+          ] %}
+          {% for icon, name, desc in techs %}
+          <div class="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3">
+            <div class="text-xl mb-2">{{ icon }}</div>
+            <p class="text-sm font-bold text-white">{{ name }}</p>
+            <p class="text-xs text-slate-500 mt-0.5 leading-relaxed">{{ desc }}</p>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CTA -->
+  <div class="text-center">
+    <a href="/chat" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold transition-all shadow-lg">
+      <i data-lucide="message-square" class="w-4 h-4"></i>
+      Coba Langsung di Chat
+    </a>
+  </div>
+
+</div>
+{% endblock %}
